@@ -1021,7 +1021,7 @@ impl EnhancedPostgresBackend {
             )
             .bind(key)
             .bind(value)
-            .execute(tx.executor())
+            .execute(tx.as_mut())
             .await
             .map_err(|e| StateError::StorageError {
                 backend_type: "postgres".to_string(),
@@ -1500,10 +1500,12 @@ impl EnhancedPostgresBackend {
 
     /// Get pool statistics
     pub fn get_pool_stats(&self) -> PoolStatistics {
+        let size = self.primary_pool.size() as u64;
+        let idle = self.primary_pool.num_idle() as u64;
         PoolStatistics {
-            size: self.primary_pool.size() as u64,
-            idle: self.primary_pool.num_idle() as u64,
-            active: (self.primary_pool.size() - self.primary_pool.num_idle()) as u64,
+            size,
+            idle,
+            active: size.saturating_sub(idle),
             max_size: self.config.pool.max_connections as u64,
         }
     }

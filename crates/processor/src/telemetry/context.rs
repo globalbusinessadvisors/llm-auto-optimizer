@@ -142,7 +142,7 @@ pub fn get_baggage(context: &Context, key: &str) -> Option<String> {
 }
 
 /// Creates a new context with the current span.
-pub fn context_with_span(span: opentelemetry::trace::Span) -> Context {
+pub fn context_with_span(span: impl opentelemetry::trace::Span) -> Context {
     Context::current_with_span(span)
 }
 

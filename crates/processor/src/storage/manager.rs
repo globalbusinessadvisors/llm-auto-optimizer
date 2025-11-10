@@ -16,6 +16,7 @@ use super::types::{
     Batch, Query, StorageBackend, StorageEntry, StorageHealth, StorageMetadata, StorageStats,
     Transaction,
 };
+use super::wrapper::AnyStorage;
 
 /// Storage manager state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,16 +70,16 @@ pub struct StorageManager {
     state: Arc<RwLock<ManagerState>>,
 
     /// Primary storage backend
-    primary: Option<Arc<dyn Storage>>,
+    primary: Option<Arc<AnyStorage>>,
 
     /// Cache backend (e.g., Redis)
-    cache: Option<Arc<dyn Storage>>,
+    cache: Option<Arc<AnyStorage>>,
 
     /// Secondary/backup backend
-    secondary: Option<Arc<dyn Storage>>,
+    secondary: Option<Arc<AnyStorage>>,
 
     /// Available backends by type
-    backends: Arc<RwLock<HashMap<StorageBackend, Arc<dyn Storage>>>>,
+    backends: Arc<RwLock<HashMap<StorageBackend, Arc<AnyStorage>>>>,
 
     /// Routing strategy
     routing_strategy: RoutingStrategy,
@@ -106,7 +107,7 @@ impl StorageManager {
     }
 
     /// Set primary storage backend
-    pub fn with_primary(mut self, backend: Arc<dyn Storage>) -> Self {
+    pub fn with_primary(mut self, backend: Arc<AnyStorage>) -> Self {
         let backend_type = backend.backend();
         self.primary = Some(backend.clone());
 
@@ -121,13 +122,13 @@ impl StorageManager {
     }
 
     /// Set cache backend
-    pub fn with_cache(mut self, backend: Arc<dyn Storage>) -> Self {
+    pub fn with_cache(mut self, backend: Arc<AnyStorage>) -> Self {
         self.cache = Some(backend.clone());
         self
     }
 
     /// Set secondary backend
-    pub fn with_secondary(mut self, backend: Arc<dyn Storage>) -> Self {
+    pub fn with_secondary(mut self, backend: Arc<AnyStorage>) -> Self {
         self.secondary = Some(backend);
         self
     }
@@ -150,7 +151,7 @@ impl StorageManager {
 
     /// Add a backend dynamically
     #[instrument(skip(self, backend))]
-    pub async fn add_backend(&self, backend: Arc<dyn Storage>) -> StorageResult<()> {
+    pub async fn add_backend(&self, backend: Arc<AnyStorage>) -> StorageResult<()> {
         let backend_type = backend.backend();
         info!("Adding backend: {:?}", backend_type);
 
@@ -175,7 +176,7 @@ impl StorageManager {
     pub async fn get_backend(
         &self,
         backend_type: StorageBackend,
-    ) -> Option<Arc<dyn Storage>> {
+    ) -> Option<Arc<AnyStorage>> {
         let backends = self.backends.read().await;
         backends.get(&backend_type).cloned()
     }
@@ -253,7 +254,7 @@ impl StorageManager {
     /// Execute operation with fallback
     async fn execute_with_fallback<F, T>(&self, operation: F) -> StorageResult<T>
     where
-        F: Fn(Arc<dyn Storage>) -> futures::future::BoxFuture<'static, StorageResult<T>> + Send,
+        F: Fn(Arc<AnyStorage>) -> futures::future::BoxFuture<'static, StorageResult<T>> + Send,
         T: Send,
     {
         // Try primary backend
@@ -360,6 +361,18 @@ impl StorageManager {
         }
 
         results
+    }
+}
+
+// Implement Debug for StorageManager
+impl std::fmt::Debug for StorageManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StorageManager")
+            .field("routing_strategy", &self.routing_strategy)
+            .field("has_primary", &self.primary.is_some())
+            .field("has_cache", &self.cache.is_some())
+            .field("has_secondary", &self.secondary.is_some())
+            .finish()
     }
 }
 

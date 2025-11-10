@@ -72,7 +72,7 @@ use super::traits::{Analyzer, AnalyzerConfig, AnalyzerError, AnalyzerResult, Ana
 use super::types::{
     Action, ActionType, Alert, AlertStatus, AnalysisReport, AnalyzerEvent, AnalyzerStats,
     Confidence, Evidence, EvidenceType, Impact, ImpactMetric, Insight, InsightCategory, Priority,
-    Recommendation, ReportSummary, Severity,
+    Recommendation, ReportSummary, RiskLevel, Severity,
 };
 
 /// Configuration for the Quality Analyzer
@@ -254,7 +254,7 @@ impl QualityMetrics {
     }
 
     fn average_rating(&self) -> Option<f64> {
-        let values = self.ratings.values();
+        let values = self.ratings.to_vec();
         if values.is_empty() {
             return None;
         }
@@ -262,7 +262,7 @@ impl QualityMetrics {
     }
 
     fn average_completeness(&self) -> Option<f64> {
-        let values = self.completeness_scores.values();
+        let values = self.completeness_scores.to_vec();
         if values.is_empty() {
             return None;
         }
@@ -357,8 +357,8 @@ impl QualityAnalyzer {
 
         // Check SLA compliance
         if metrics.latencies.len() >= 10 {
-            let latencies_vec = metrics.latencies.values();
-            let percentiles = calculate_percentiles(latencies_vec, &[0.95, 0.99]);
+            let latencies_vec = metrics.latencies.to_vec();
+            let percentiles = calculate_percentiles(latencies_vec.clone(), &[0.95, 0.99]);
 
             metrics.sla_checks += 1;
 
@@ -380,7 +380,7 @@ impl QualityAnalyzer {
             metrics.baseline_success_rate = Some(metrics.current_success_rate());
 
             if metrics.latencies.len() >= 10 {
-                let latencies_vec = metrics.latencies.values();
+                let latencies_vec = metrics.latencies.to_vec();
                 let percentiles = calculate_percentiles(latencies_vec, &[0.95]);
                 if let Some((_, p95)) = percentiles.first() {
                     metrics.baseline_p95_latency = Some(*p95);
@@ -524,18 +524,25 @@ impl QualityAnalyzer {
                 ),
                 action: Action {
                     action_type: ActionType::Investigate,
-                    description: "Review error logs and implement error handling improvements"
+                    instructions: "Review error logs and implement error handling improvements"
                         .to_string(),
-                    automated: false,
-                    estimated_effort_hours: Some(4.0),
+                    parameters: Default::default(),
+                    estimated_effort: Some(4.0),
+                    risk_level: RiskLevel::Low,
                 },
                 expected_impact: Impact {
-                    metric: ImpactMetric::ErrorRate,
-                    current_value: error_rate,
-                    expected_value: self.config.error_rate_warning_pct / 2.0,
-                    confidence: Confidence::High,
+                    quality: Some(ImpactMetric {
+                        name: "error_rate".to_string(),
+                        current: error_rate,
+                        expected: self.config.error_rate_warning_pct / 2.0,
+                        unit: "%".to_string(),
+                        improvement_pct: ((error_rate - self.config.error_rate_warning_pct / 2.0) / error_rate) * 100.0,
+                    }),
+                    performance: None,
+                    cost: None,
+                    description: format!("Reduce error rate from {:.2}% to {:.2}%", error_rate, self.config.error_rate_warning_pct / 2.0),
                 },
-                confidence: Confidence::High,
+                confidence: Confidence::new(0.8),
                 related_insights: vec![],
                 tags: vec!["quality".to_string(), "errors".to_string()],
             });
@@ -554,18 +561,25 @@ impl QualityAnalyzer {
                     success_rate, self.config.min_success_rate_pct
                 ),
                 action: Action {
-                    action_type: ActionType::Configure,
-                    description: "Enable exponential backoff retry logic".to_string(),
-                    automated: true,
-                    estimated_effort_hours: Some(2.0),
+                    action_type: ActionType::ConfigChange,
+                    instructions: "Enable exponential backoff retry logic".to_string(),
+                    parameters: Default::default(),
+                    estimated_effort: Some(2.0),
+                    risk_level: RiskLevel::Low,
                 },
                 expected_impact: Impact {
-                    metric: ImpactMetric::SuccessRate,
-                    current_value: success_rate,
-                    expected_value: self.config.min_success_rate_pct,
-                    confidence: Confidence::High,
+                    quality: Some(ImpactMetric {
+                        name: "success_rate".to_string(),
+                        current: success_rate,
+                        expected: self.config.min_success_rate_pct,
+                        unit: "%".to_string(),
+                        improvement_pct: ((self.config.min_success_rate_pct - success_rate) / success_rate) * 100.0,
+                    }),
+                    performance: None,
+                    cost: None,
+                    description: format!("Improve success rate from {:.2}% to {:.2}%", success_rate, self.config.min_success_rate_pct),
                 },
-                confidence: Confidence::High,
+                confidence: Confidence::new(0.8),
                 related_insights: vec![],
                 tags: vec!["quality".to_string(), "reliability".to_string()],
             });
@@ -587,17 +601,24 @@ impl QualityAnalyzer {
                 ),
                 action: Action {
                     action_type: ActionType::Optimize,
-                    description: "Enable caching and optimize slow queries".to_string(),
-                    automated: false,
-                    estimated_effort_hours: Some(8.0),
+                    instructions: "Enable caching and optimize slow queries".to_string(),
+                    parameters: Default::default(),
+                    estimated_effort: Some(8.0),
+                    risk_level: RiskLevel::Medium,
                 },
                 expected_impact: Impact {
-                    metric: ImpactMetric::Latency,
-                    current_value: metrics.sla_violations_p95 as f64,
-                    expected_value: 0.0,
-                    confidence: Confidence::Medium,
+                    performance: Some(ImpactMetric {
+                        name: "p95_latency".to_string(),
+                        current: metrics.sla_violations_p95 as f64,
+                        expected: 0.0,
+                        unit: "violations".to_string(),
+                        improvement_pct: 100.0,
+                    }),
+                    cost: None,
+                    quality: None,
+                    description: "Reduce P95 latency SLA violations to zero".to_string(),
                 },
-                confidence: Confidence::Medium,
+                confidence: Confidence::new(0.6),
                 related_insights: vec![],
                 tags: vec!["quality".to_string(), "sla".to_string()],
             });
@@ -618,18 +639,25 @@ impl QualityAnalyzer {
                     ),
                     action: Action {
                         action_type: ActionType::Optimize,
-                        description: "Analyze negative feedback patterns and adjust prompts"
+                        instructions: "Analyze negative feedback patterns and adjust prompts"
                             .to_string(),
-                        automated: false,
-                        estimated_effort_hours: Some(6.0),
+                        parameters: Default::default(),
+                        estimated_effort: Some(6.0),
+                        risk_level: RiskLevel::Medium,
                     },
                     expected_impact: Impact {
-                        metric: ImpactMetric::QualityScore,
-                        current_value: avg_rating,
-                        expected_value: self.config.min_avg_rating,
-                        confidence: Confidence::Medium,
+                        quality: Some(ImpactMetric {
+                            name: "quality_score".to_string(),
+                            current: avg_rating,
+                            expected: self.config.min_avg_rating,
+                            unit: "rating".to_string(),
+                            improvement_pct: ((self.config.min_avg_rating - avg_rating) / avg_rating) * 100.0,
+                        }),
+                        performance: None,
+                        cost: None,
+                        description: format!("Improve quality score from {:.2} to {:.2}", avg_rating, self.config.min_avg_rating),
                     },
-                    confidence: Confidence::Medium,
+                    confidence: Confidence::new(0.6),
                     related_insights: vec![],
                     tags: vec!["quality".to_string(), "feedback".to_string()],
                 });
@@ -650,7 +678,7 @@ impl QualityAnalyzer {
             analyzer: "quality-analyzer".to_string(),
             timestamp: Utc::now(),
             severity,
-            confidence: Confidence::High,
+            confidence: Confidence::new(0.8),
             title: format!("High error rate: {:.2}%", error_rate),
             description: format!(
                 "Error rate is {:.2}%, which exceeds the {} threshold. Total failures: {}. Top errors: {}",
@@ -662,15 +690,15 @@ impl QualityAnalyzer {
             category: InsightCategory::Quality,
             evidence: vec![
                 Evidence {
-                    evidence_type: EvidenceType::Metric,
+                    evidence_type: EvidenceType::Statistical,
                     description: format!("Error rate: {:.2}%", error_rate),
-                    value: Some(error_rate),
+                    data: serde_json::json!({"value": error_rate}),
                     timestamp: Utc::now(),
                 },
                 Evidence {
-                    evidence_type: EvidenceType::Metric,
+                    evidence_type: EvidenceType::Statistical,
                     description: format!("Failed requests: {}", metrics.failed_requests),
-                    value: Some(metrics.failed_requests as f64),
+                    data: serde_json::json!({"value": metrics.failed_requests as f64}),
                     timestamp: Utc::now(),
                 },
             ],
@@ -698,7 +726,7 @@ impl QualityAnalyzer {
             analyzer: "quality-analyzer".to_string(),
             timestamp: Utc::now(),
             severity: Severity::Warning,
-            confidence: Confidence::High,
+            confidence: Confidence::new(0.8),
             title: format!(
                 "Success rate {:.2}% below target {:.2}%",
                 success_rate, self.config.min_success_rate_pct
@@ -712,9 +740,9 @@ impl QualityAnalyzer {
             ),
             category: InsightCategory::Quality,
             evidence: vec![Evidence {
-                evidence_type: EvidenceType::Metric,
+                evidence_type: EvidenceType::Statistical,
                 description: format!("Success rate: {:.2}%", success_rate),
-                value: Some(success_rate),
+                data: serde_json::json!({"value": success_rate}),
                 timestamp: Utc::now(),
             }],
             metrics: {
@@ -745,7 +773,7 @@ impl QualityAnalyzer {
             } else {
                 Severity::Warning
             },
-            confidence: Confidence::High,
+            confidence: Confidence::new(0.8),
             title: format!("SLA compliance at {:.1}%", sla_compliance),
             description: format!(
                 "SLA compliance is {:.1}%, with {} P95 violations and {} P99 violations. Targets: P95 < {:.0}ms, P99 < {:.0}ms",
@@ -758,15 +786,15 @@ impl QualityAnalyzer {
             category: InsightCategory::Quality,
             evidence: vec![
                 Evidence {
-                    evidence_type: EvidenceType::Metric,
+                    evidence_type: EvidenceType::Statistical,
                     description: format!("SLA compliance: {:.1}%", sla_compliance),
-                    value: Some(sla_compliance),
+                    data: serde_json::json!({"value": sla_compliance}),
                     timestamp: Utc::now(),
                 },
                 Evidence {
-                    evidence_type: EvidenceType::Metric,
+                    evidence_type: EvidenceType::Statistical,
                     description: format!("P95 violations: {}", metrics.sla_violations_p95),
-                    value: Some(metrics.sla_violations_p95 as f64),
+                    data: serde_json::json!({"value": metrics.sla_violations_p95 as f64}),
                     timestamp: Utc::now(),
                 },
             ],
@@ -800,7 +828,7 @@ impl QualityAnalyzer {
             } else {
                 Severity::Warning
             },
-            confidence: Confidence::Medium,
+            confidence: Confidence::new(0.6),
             title: format!(
                 "Average rating {:.2}/5.0 below target {:.2}/5.0",
                 avg_rating, self.config.min_avg_rating
@@ -816,9 +844,9 @@ impl QualityAnalyzer {
             ),
             category: InsightCategory::Quality,
             evidence: vec![Evidence {
-                evidence_type: EvidenceType::Metric,
+                evidence_type: EvidenceType::Statistical,
                 description: format!("Average rating: {:.2}/5.0", avg_rating),
-                value: Some(avg_rating),
+                data: serde_json::json!({"value": avg_rating}),
                 timestamp: Utc::now(),
             }],
             metrics: {
@@ -839,7 +867,7 @@ impl QualityAnalyzer {
             analyzer: "quality-analyzer".to_string(),
             timestamp: Utc::now(),
             severity: Severity::Warning,
-            confidence: Confidence::Medium,
+            confidence: Confidence::new(0.6),
             title: format!("Quality degradation detected: {:.1}%", degradation.abs()),
             description: format!(
                 "Success rate has degraded by {:.1}% from baseline. Current: {:.2}%, Baseline: {:.2}%",
@@ -849,9 +877,9 @@ impl QualityAnalyzer {
             ),
             category: InsightCategory::Quality,
             evidence: vec![Evidence {
-                evidence_type: EvidenceType::Trend,
+                evidence_type: EvidenceType::TimeSeries,
                 description: format!("Quality degradation: {:.1}%", degradation.abs()),
-                value: Some(degradation),
+                data: serde_json::json!({"value": degradation}),
                 timestamp: Utc::now(),
             }],
             metrics: {
@@ -901,8 +929,8 @@ impl Analyzer for QualityAnalyzer {
     async fn start(&mut self) -> AnalyzerResult<()> {
         if self.state == AnalyzerState::Running {
             return Err(AnalyzerError::InvalidStateTransition {
-                from: self.state.clone(),
-                to: AnalyzerState::Starting,
+                from: self.state.as_str().to_string(),
+                to: AnalyzerState::Starting.as_str().to_string(),
             });
         }
 
@@ -919,8 +947,8 @@ impl Analyzer for QualityAnalyzer {
     async fn stop(&mut self) -> AnalyzerResult<()> {
         if self.state != AnalyzerState::Running {
             return Err(AnalyzerError::InvalidStateTransition {
-                from: self.state.clone(),
-                to: AnalyzerState::Draining,
+                from: self.state.as_str().to_string(),
+                to: AnalyzerState::Draining.as_str().to_string(),
             });
         }
 
@@ -942,7 +970,7 @@ impl Analyzer for QualityAnalyzer {
         // Update stats
         let mut stats = self.stats.write().await;
         stats.events_processed += 1;
-        stats.last_event_time = Some(Utc::now());
+        // Note: last_event_time field removed from AnalyzerStats
         drop(stats);
 
         // Process based on event type
@@ -1030,19 +1058,26 @@ impl Analyzer for QualityAnalyzer {
             metrics.negative_feedback as f64,
         );
 
+        let critical_issues_count = insights
+            .iter()
+            .filter(|i| i.severity == Severity::Critical)
+            .count();
+        let warnings_count = insights
+            .iter()
+            .filter(|i| i.severity == Severity::Warning)
+            .count();
+
         let summary = ReportSummary {
-            total_events: stats.events_processed,
-            insights_count: insights.len(),
-            recommendations_count: recommendations.len(),
+            events_processed: stats.events_processed,
+            events_per_second: 0.0,  // TODO: Calculate properly
+            insights_count: insights.len() as u64,
+            recommendations_count: recommendations.len() as u64,
             alerts_count: 0,
-            critical_issues: insights
-                .iter()
-                .filter(|i| i.severity == Severity::Critical)
-                .count(),
-            warnings: insights
-                .iter()
-                .filter(|i| i.severity == Severity::Warning)
-                .count(),
+            analysis_duration_ms: 0,  // TODO: Calculate properly
+            highlights: vec![
+                format!("Critical issues: {}", critical_issues_count),
+                format!("Warnings: {}", warnings_count),
+            ],
         };
 
         Ok(AnalysisReport {
@@ -1062,13 +1097,18 @@ impl Analyzer for QualityAnalyzer {
         // This is synchronous, so we can't await. Return a default for now.
         // In a real implementation, we'd use try_read() or similar
         AnalyzerStats {
+            analyzer: "QualityAnalyzer".to_string(),
             events_processed: 0,
+            events_dropped: 0,
             insights_generated: 0,
             recommendations_generated: 0,
-            alerts_generated: 0,
-            errors_encountered: 0,
-            last_event_time: None,
-            avg_processing_time_ms: 0.0,
+            alerts_triggered: 0,  // was: alerts_generated
+            analysis_time_ms: 0,
+            avg_analysis_time_us: 0.0,  // was: avg_processing_time_ms
+            memory_usage_bytes: 0,
+            error_count: 0,  // was: errors_encountered
+            last_error: None,
+            uptime_seconds: 0,
         }
     }
 

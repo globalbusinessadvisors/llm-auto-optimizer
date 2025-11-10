@@ -317,7 +317,9 @@ impl StreamOperator for NormalizationOperator {
             // Check for gaps and fill if necessary
             if let Some(last) = last_emitted {
                 let gap = ts.signed_duration_since(last);
-                if gap > self.config.interval {
+                let interval_chrono = chrono::Duration::from_std(self.config.interval)
+                    .unwrap_or(chrono::Duration::seconds(60));
+                if gap > interval_chrono {
                     // Fill the gap
                     let filled = self.fill_missing_intervals(
                         last,

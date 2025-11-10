@@ -9,7 +9,7 @@ use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
     metrics::{
         reader::{DefaultAggregationSelector, DefaultTemporalitySelector, TemporalitySelector},
-        MeterProvider, PeriodicReader, SdkMeterProvider,
+        PeriodicReader, SdkMeterProvider,
     },
     runtime,
     Resource,
@@ -224,8 +224,8 @@ impl MetricsRecorder {
         value: u64,
         attributes: Vec<KeyValue>,
     ) {
-        let meter = global::meter(meter_name);
-        let counter = meter.u64_counter(counter_name).init();
+        let meter = global::meter(meter_name.to_string());
+        let counter = meter.u64_counter(counter_name.to_string()).init();
 
         let mut all_attrs = self.common_attributes.clone();
         all_attrs.extend(attributes);
@@ -241,8 +241,8 @@ impl MetricsRecorder {
         value: f64,
         attributes: Vec<KeyValue>,
     ) {
-        let meter = global::meter(meter_name);
-        let histogram = meter.f64_histogram(histogram_name).init();
+        let meter = global::meter(meter_name.to_string());
+        let histogram = meter.f64_histogram(histogram_name.to_string()).init();
 
         let mut all_attrs = self.common_attributes.clone();
         all_attrs.extend(attributes);
@@ -258,8 +258,8 @@ impl MetricsRecorder {
         value: i64,
         attributes: Vec<KeyValue>,
     ) {
-        let meter = global::meter(meter_name);
-        let gauge = meter.i64_up_down_counter(gauge_name).init();
+        let meter = global::meter(meter_name.to_string());
+        let gauge = meter.i64_up_down_counter(gauge_name.to_string()).init();
 
         let mut all_attrs = self.common_attributes.clone();
         all_attrs.extend(attributes);

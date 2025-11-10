@@ -4,7 +4,7 @@
 //! cost per request, and detects cost anomalies and optimization opportunities.
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -218,8 +218,8 @@ impl CostMetrics {
         }
 
         // Check monthly reset
-        if now.month() != self.monthly_reset_time.month()
-            || now.year() != self.monthly_reset_time.year() {
+        if now.date_naive().month() != self.monthly_reset_time.date_naive().month()
+            || now.date_naive().year() != self.monthly_reset_time.date_naive().year() {
             self.monthly_cost = 0.0;
             self.monthly_reset_time = now;
         }

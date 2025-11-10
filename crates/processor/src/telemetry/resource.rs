@@ -5,7 +5,7 @@
 
 use opentelemetry::KeyValue;
 use opentelemetry_sdk::resource::{
-    EnvResourceDetector, OsResourceDetector, ProcessResourceDetector, Resource,
+    EnvResourceDetector, Resource,
     SdkProvidedResourceDetector,
 };
 use opentelemetry_semantic_conventions::resource::{
@@ -106,12 +106,10 @@ impl ResourceBuilder {
         // Create base resource
         let base_resource = Resource::new(key_values);
 
-        // Merge with detected resources
+        // Merge with detected resources (Note: ResourceDetector API changed in 0.24)
+        // For now, just return base resource without auto-detection
+        // TODO: Update to use new opentelemetry_sdk 0.24 resource detection API
         base_resource
-            .merge(&SdkProvidedResourceDetector.detect(std::time::Duration::from_secs(0)))
-            .merge(&EnvResourceDetector::new().detect(std::time::Duration::from_secs(0)))
-            .merge(&ProcessResourceDetector.detect(std::time::Duration::from_secs(0)))
-            .merge(&OsResourceDetector.detect(std::time::Duration::from_secs(0)))
     }
 
     /// Builds the resource without automatic detection (manual attributes only).

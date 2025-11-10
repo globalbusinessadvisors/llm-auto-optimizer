@@ -69,7 +69,7 @@ bincode = "1.3"
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "macros", "migrate", "uuid", "chrono"] }
-redis = { version = "0.26", features = ["tokio-comp", "connection-manager", "streams", "cluster", "cluster-async"] }
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager", "streams", "cluster", "cluster-async"] }
 sled = { version = "0.34", features = ["compression"] }
 
 # Connection Pooling

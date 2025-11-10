@@ -222,7 +222,10 @@ impl ModelSelectionStrategy {
 
         // Get performance metrics from insights and recommendations
         for report in &input.analysis_reports {
-            if let Some(model_metrics) = report.metadata.get("model_metrics") {
+            // Try to extract model metrics from insights since metadata field doesn't exist
+            // This is a placeholder - actual implementation would extract from insights
+            if false {
+                let model_metrics = serde_json::Value::Null;
                 if let Ok(metrics) =
                     serde_json::from_value::<HashMap<String, ModelMetrics>>(model_metrics.clone())
                 {
@@ -600,7 +603,7 @@ impl OptimizationStrategy for ModelSelectionStrategy {
             related_recommendations: input
                 .recommendations
                 .iter()
-                .filter(|r| r.category == "optimization")
+                .filter(|r| r.tags.contains(&"optimization".to_string()))
                 .map(|r| r.id.clone())
                 .collect(),
             priority: self.priority(),

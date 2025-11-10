@@ -113,7 +113,7 @@ impl ActuatorState {
 }
 
 /// Deployment state
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum DeploymentState {
     /// Deployment is pending
     Pending,
@@ -150,5 +150,20 @@ impl DeploymentState {
             self,
             DeploymentState::RollingOut | DeploymentState::Monitoring
         )
+    }
+}
+
+impl std::fmt::Display for DeploymentState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeploymentState::Pending => write!(f, "Pending"),
+            DeploymentState::Validating => write!(f, "Validating"),
+            DeploymentState::RollingOut => write!(f, "RollingOut"),
+            DeploymentState::Monitoring => write!(f, "Monitoring"),
+            DeploymentState::Completed => write!(f, "Completed"),
+            DeploymentState::RollingBack => write!(f, "RollingBack"),
+            DeploymentState::RolledBack => write!(f, "RolledBack"),
+            DeploymentState::Failed => write!(f, "Failed"),
+        }
     }
 }

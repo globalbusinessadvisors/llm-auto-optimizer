@@ -215,12 +215,8 @@ struct RedisSubscriber {
 }
 
 impl RedisSubscriber {
-    async fn new(mut conn: Connection, channel: String) -> StorageResult<Self> {
-        let pubsub = conn
-            .take()
-            .map_err(|e| StorageError::ConnectionError {
-                source: Box::new(e),
-            })?
+    async fn new(conn: Connection, channel: String) -> StorageResult<Self> {
+        let pubsub = Connection::take(conn)
             .into_pubsub();
 
         Ok(Self {
@@ -283,8 +279,8 @@ impl RedisStorage {
         })?;
 
         // Ping to verify connection
-        redis::cmd("PING")
-            .query_async::<_, String>(&mut *conn)
+        let _: String = redis::cmd("PING")
+            .query_async(&mut *conn)
             .await
             .map_err(|e| StorageError::ConnectionError {
                 source: Box::new(e),
@@ -649,7 +645,7 @@ impl Storage for RedisStorage {
         match self.get_connection().await {
             Ok(mut conn) => {
                 // Try to ping
-                match redis::cmd("PING").query_async::<_, String>(&mut *conn).await {
+                match redis::cmd("PING").query_async::<String>(&mut *conn).await {
                     Ok(_) => {
                         let elapsed = start.elapsed().as_millis();
                         if elapsed < 100 {
@@ -760,9 +756,9 @@ impl Storage for RedisStorage {
             .arg(&version_key)
             .arg(ttl_seconds)
             .arg(1u64)
-            .query_async::<_, ()>(&mut *conn)
+            .query_async(&mut *conn)
             .await
-            .map_err(|e| StorageError::QueryError {
+            .map_err(|e: redis::RedisError| StorageError::QueryError {
                 message: format!("Failed to set version: {}", e),
             })?;
 
@@ -970,9 +966,9 @@ impl Storage for RedisStorage {
             }
         }
 
-        pipe.query_async::<_, ()>(&mut *conn)
+        pipe.query_async(&mut *conn)
             .await
-            .map_err(|e| StorageError::QueryError {
+            .map_err(|e: redis::RedisError| StorageError::QueryError {
                 message: format!("Batch execution failed: {}", e),
             })?;
 
@@ -1075,9 +1071,9 @@ impl Storage for RedisStorage {
             }
         }
 
-        pipe.query_async::<_, ()>(&mut *conn)
+        pipe.query_async(&mut *conn)
             .await
-            .map_err(|e| StorageError::TransactionError {
+            .map_err(|e: redis::RedisError| StorageError::TransactionError {
                 message: format!("Transaction commit failed: {}", e),
             })?;
 
@@ -1157,9 +1153,9 @@ impl Storage for RedisStorage {
             pipe.del(&metadata_key);
         }
 
-        pipe.query_async::<_, ()>(&mut *conn)
+        pipe.query_async(&mut *conn)
             .await
-            .map_err(|e| StorageError::QueryError {
+            .map_err(|e: redis::RedisError| StorageError::QueryError {
                 message: format!("Multi-delete failed: {}", e),
             })?;
 

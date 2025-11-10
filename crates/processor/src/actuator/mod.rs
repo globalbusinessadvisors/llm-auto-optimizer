@@ -64,10 +64,10 @@ pub use config::{ActuatorConfig, ConfigurationManagementConfig, HealthMonitoring
 // Types
 pub use types::{
     ActuatorStats, CanaryConfig, CanaryPhase, ConfigurationSnapshot, DeploymentMetrics,
-    DeploymentRequest, DeploymentStatus, DeploymentStrategy, HealthCheckResult, HealthStatus,
+    DeploymentRequest, DeploymentState, DeploymentStatus, DeploymentStrategy, HealthCheckResult, HealthStatus,
     RollbackReason, RollbackRequest, RollbackResult, StatisticalAnalysis, SuccessCriteria,
-    TrafficSplitStrategy,
+    SystemMetrics, TrafficSplitStrategy,
 };
 
 // Error types
-pub use error::{ActuatorError, ActuatorResult, ActuatorState, DeploymentState};
+pub use error::{ActuatorError, ActuatorResult, ActuatorState};

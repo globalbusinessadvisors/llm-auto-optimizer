@@ -43,7 +43,7 @@ impl ActuatorCoordinator {
     /// Create a new Actuator Coordinator
     pub fn new(config: ActuatorConfig) -> Self {
         let canary_engine = Arc::new(RwLock::new(CanaryDeploymentEngine::new(
-            Some(config.canary.clone()),
+            config.canary.clone(),
         )));
 
         let rollback_engine = Arc::new(RwLock::new(RollbackEngine::new(

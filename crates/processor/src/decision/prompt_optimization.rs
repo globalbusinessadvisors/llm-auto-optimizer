@@ -529,7 +529,7 @@ impl PromptOptimizationStrategy {
                 },
             ],
             max_duration: std::time::Duration::from_secs(
-                self.config.ab_test_duration.num_seconds() as u64
+                self.config.ab_test_duration.as_secs()
             ),
         };
 
@@ -542,7 +542,7 @@ impl PromptOptimizationStrategy {
             analysis.opportunities.len(),
             cost_savings_per_day,
             expected_quality_impact * 100.0,
-            self.config.ab_test_duration.num_hours(),
+            self.config.ab_test_duration.as_secs() / 3600,
             self.config.ab_test_traffic_split * 100.0
         );
 
@@ -810,118 +810,139 @@ impl OptimizationStrategy for PromptOptimizationStrategy {
             .and_then(|v| v.as_str())
             .ok_or_else(|| DecisionError::Internal("Missing test_id in metadata".to_string()))?;
 
-        // Check if we have an active test
-        if let Some(test) = state.active_tests.get_mut(test_id) {
-            // Update test observations based on outcome
-            if outcome.success {
-                // Analyze the actual impact
-                if let Some(actual_impact) = &outcome.actual_impact {
-                    // Calculate actual token reduction
-                    let actual_token_reduction_pct = if outcome.metrics_before.request_count > 0 {
-                        -actual_impact.cost_change_usd / outcome.metrics_before.total_cost_usd * 100.0
+        // Check if we have an active test - use a scope to limit the borrow
+        let (should_update_stats, update_info) = {
+            if let Some(test) = state.active_tests.get_mut(test_id) {
+                // Update test observations based on outcome
+                if outcome.success {
+                    // Analyze the actual impact
+                    if let Some(actual_impact) = &outcome.actual_impact {
+                        // Calculate actual token reduction
+                        let actual_token_reduction_pct = if outcome.metrics_before.request_count > 0 {
+                            -actual_impact.cost_change_usd / outcome.metrics_before.total_cost_usd * 100.0
+                        } else {
+                            0.0
+                        };
+
+                        // Update test observations (simplified - would track per-variant in production)
+                        test.observations.treatment.sample_count += 1;
+                        test.observations.treatment.avg_tokens =
+                            outcome.metrics_before.request_count as f64 * (1.0 - actual_token_reduction_pct / 100.0);
+
+                        if let Some(quality_after) = outcome.metrics_after.as_ref().and_then(|m| m.avg_rating) {
+                            test.observations.treatment.quality_ratings.push(quality_after);
+                            test.observations.treatment.avg_quality = test
+                                .observations
+                                .treatment
+                                .quality_ratings
+                                .iter()
+                                .sum::<f64>()
+                                / test.observations.treatment.quality_ratings.len() as f64;
+                        }
+
+                        // Analyze test results
+                        let analysis = self.analyze_test_results(test);
+
+                        // Prepare update info based on recommendation
+                        let update_type = match analysis.recommendation {
+                            TestRecommendation::Rollout => {
+                                test.status = TestStatus::RolledOut;
+                                let token_savings = (test.expected_token_reduction_pct / 100.0
+                                    * outcome.metrics_before.request_count as f64) as u64;
+                                Some((
+                                    "rollout",
+                                    token_savings,
+                                    -actual_impact.cost_change_usd,
+                                    format!(
+                                        "Successful rollout: {:.1}% token reduction, {:.1}% quality change",
+                                        analysis.token_reduction_pct, analysis.quality_change_pct
+                                    ),
+                                    0.05f64,
+                                ))
+                            }
+                            TestRecommendation::Rollback => {
+                                test.status = TestStatus::RolledBack;
+                                let rollback_type = if analysis.quality_change_pct < -(self.config.max_quality_degradation_pct) {
+                                    "quality"
+                                } else {
+                                    "savings"
+                                };
+                                Some((
+                                    rollback_type,
+                                    0u64,
+                                    0.0f64,
+                                    format!(
+                                        "Rolled back: insufficient savings or quality degradation. \
+                                         Token reduction: {:.1}%, Quality change: {:.1}%",
+                                        analysis.token_reduction_pct, analysis.quality_change_pct
+                                    ),
+                                    -0.05f64,
+                                ))
+                            }
+                            TestRecommendation::ContinueTesting => None,
+                        };
+
+                        // Check if test is complete
+                        let is_complete = test.status != TestStatus::Running;
+                        let completed_test = if is_complete { Some(test.clone()) } else { None };
+
+                        (true, Some((update_type, is_complete, completed_test)))
                     } else {
-                        0.0
-                    };
-
-                    // Update test observations (simplified - would track per-variant in production)
-                    test.observations.treatment.sample_count += 1;
-                    test.observations.treatment.avg_tokens =
-                        outcome.metrics_before.request_count as f64 * (1.0 - actual_token_reduction_pct / 100.0);
-
-                    if let Some(quality_after) = outcome.metrics_after.as_ref().and_then(|m| m.avg_rating) {
-                        test.observations.treatment.quality_ratings.push(quality_after);
-                        test.observations.treatment.avg_quality = test
-                            .observations
-                            .treatment
-                            .quality_ratings
-                            .iter()
-                            .sum::<f64>()
-                            / test.observations.treatment.quality_ratings.len() as f64;
+                        (false, None)
                     }
-
-                    // Analyze test results
-                    let analysis = self.analyze_test_results(test);
-
-                    // Take action based on recommendation
-                    match analysis.recommendation {
-                        TestRecommendation::Rollout => {
-                            test.status = TestStatus::RolledOut;
-                            state.stats.successful_rollouts += 1;
-
-                            // Calculate token savings
-                            let token_savings = (test.expected_token_reduction_pct / 100.0
-                                * outcome.metrics_before.request_count as f64) as u64;
-                            state.stats.total_token_savings += token_savings;
-
-                            if let Some(cost_change) = actual_impact.cost_change_usd {
-                                state.stats.total_cost_savings_usd += -cost_change;
-                            }
-
-                            // Record learning
-                            state.learning_history.push(LearningRecord {
-                                timestamp: Utc::now(),
-                                decision_id: decision.id.clone(),
-                                lesson: format!(
-                                    "Successful rollout: {:.1}% token reduction, {:.1}% quality change",
-                                    analysis.token_reduction_pct, analysis.quality_change_pct
-                                ),
-                                confidence_adjustment: 0.05, // Increase confidence for future decisions
-                                metadata: HashMap::new(),
-                            });
-                        }
-                        TestRecommendation::Rollback => {
-                            test.status = TestStatus::RolledBack;
-
-                            if analysis.quality_change_pct < -(self.config.max_quality_degradation_pct) {
-                                state.stats.rollbacks_quality += 1;
-                            } else {
-                                state.stats.rollbacks_savings += 1;
-                            }
-
-                            // Record learning
-                            state.learning_history.push(LearningRecord {
-                                timestamp: Utc::now(),
-                                decision_id: decision.id.clone(),
-                                lesson: format!(
-                                    "Rolled back: insufficient savings or quality degradation. \
-                                     Token reduction: {:.1}%, Quality change: {:.1}%",
-                                    analysis.token_reduction_pct, analysis.quality_change_pct
-                                ),
-                                confidence_adjustment: -0.05, // Decrease confidence
-                                metadata: HashMap::new(),
-                            });
-                        }
-                        TestRecommendation::ContinueTesting => {
-                            // Keep test running
-                        }
-                    }
-
-                    // Move to completed if test is done
-                    if test.status != TestStatus::Running {
-                        let completed_test = test.clone();
-                        state.completed_tests.push(completed_test);
-                        state.active_tests.remove(test_id);
-                    }
-                }
-            } else {
-                // Decision failed - rollback test
-                test.status = TestStatus::Stopped;
-                state.stats.rollbacks_quality += 1;
-
-                state.learning_history.push(LearningRecord {
-                    timestamp: Utc::now(),
-                    decision_id: decision.id.clone(),
-                    lesson: format!(
+                } else {
+                    // Decision failed - rollback test
+                    test.status = TestStatus::Stopped;
+                    let lesson = format!(
                         "Test failed: {}",
                         outcome.error.as_ref().unwrap_or(&"Unknown error".to_string())
-                    ),
-                    confidence_adjustment: -0.1,
-                    metadata: HashMap::new(),
-                });
+                    );
+                    (true, Some((Some(("failed", 0u64, 0.0f64, lesson, -0.1f64)), false, None)))
+                }
+            } else {
+                (false, None)
+            }
+        }; // End of borrow scope
 
-                let completed_test = test.clone();
-                state.completed_tests.push(completed_test);
-                state.active_tests.remove(test_id);
+        // Now update state.stats without holding a borrow to active_tests
+        if should_update_stats {
+            if let Some((update_type, is_complete, completed_test)) = update_info {
+                // Update stats based on the recommendation
+                if let Some((action, token_savings, cost_savings, lesson, confidence_adj)) = update_type {
+                    match action {
+                        "rollout" => {
+                            state.stats.successful_rollouts += 1;
+                            state.stats.total_token_savings += token_savings;
+                            state.stats.total_cost_savings_usd += cost_savings;
+                        }
+                        "quality" => {
+                            state.stats.rollbacks_quality += 1;
+                        }
+                        "savings" => {
+                            state.stats.rollbacks_savings += 1;
+                        }
+                        "failed" => {
+                            state.stats.rollbacks_quality += 1;
+                        }
+                        _ => {}
+                    }
+
+                    state.learning_history.push(LearningRecord {
+                        timestamp: Utc::now(),
+                        decision_id: decision.id.clone(),
+                        lesson,
+                        confidence_adjustment: confidence_adj,
+                        metadata: HashMap::new(),
+                    });
+                }
+
+                // Move to completed tests if done
+                if is_complete {
+                    if let Some(test) = completed_test {
+                        state.completed_tests.push(test);
+                    }
+                    state.active_tests.remove(test_id);
+                }
             }
         }
 

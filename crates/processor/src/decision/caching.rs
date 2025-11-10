@@ -322,13 +322,13 @@ impl CachingStrategy {
                         timestamp: insight.timestamp,
                         fingerprint: format!("fp_{}", pattern_data),
                         metadata: HashMap::new(),
-                        tokens: insight.metrics.get("tokens").unwrap_or(&0.0) as u32,
+                        tokens: *insight.metrics.get("tokens").unwrap_or(&0.0) as u32,
                         model: insight
                             .metrics
                             .get("model")
                             .and_then(|v| Some(format!("model_{}", v)))
                             .unwrap_or_else(|| "unknown".to_string()),
-                        count: insight.metrics.get("count").unwrap_or(&1.0) as u64,
+                        count: *insight.metrics.get("count").unwrap_or(&1.0) as u64,
                     };
 
                     self.request_patterns.push_back(pattern);
@@ -603,7 +603,7 @@ impl CachingStrategy {
     /// Recommend similarity threshold
     fn recommend_similarity_threshold(&self, cluster: &RequestCluster) -> f64 {
         // Base threshold on cluster similarity
-        let base_threshold = if cluster.avg_similarity > 0.9 {
+        let base_threshold: f64 = if cluster.avg_similarity > 0.9 {
             // Very similar: can use lower threshold
             0.80
         } else if cluster.avg_similarity > 0.8 {

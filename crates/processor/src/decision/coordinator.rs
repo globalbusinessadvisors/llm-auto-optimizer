@@ -320,7 +320,8 @@ impl DecisionEngine for DecisionCoordinator {
 
         // Keep only recent history
         if history.len() > self.config.monitoring.decision_history_size {
-            history.drain(0..history.len() - self.config.monitoring.decision_history_size);
+            let len = history.len();
+            history.drain(0..len - self.config.monitoring.decision_history_size);
         }
 
         // Add to active decisions
@@ -388,7 +389,8 @@ impl DecisionEngine for DecisionCoordinator {
 
         // Keep only recent history
         if history.len() > self.config.monitoring.outcome_history_size {
-            history.drain(0..history.len() - self.config.monitoring.outcome_history_size);
+            let len = history.len();
+            history.drain(0..len - self.config.monitoring.outcome_history_size);
         }
 
         Ok(())

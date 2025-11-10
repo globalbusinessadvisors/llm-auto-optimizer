@@ -7,8 +7,8 @@ use std::fmt::Debug;
 
 use super::error::{StorageError, StorageResult};
 use super::types::{
-    Batch, Operation, Query, StorageBackend, StorageEntry, StorageHealth, StorageMetadata,
-    StorageStats, Transaction,
+    Batch, EntryMetadata, Operation, Query, StorageBackend, StorageEntry, StorageHealth,
+    StorageMetadata, StorageStats, Transaction,
 };
 
 /// Core storage trait defining unified interface for all backends
@@ -34,7 +34,9 @@ pub trait Storage: Send + Sync + Debug {
         table: &str,
         key: &str,
         value: &T,
-    ) -> StorageResult<()>;
+    ) -> StorageResult<()>
+    where
+        Self: Sized;
 
     /// Insert entry with TTL (time-to-live in seconds)
     async fn insert_with_ttl<T: Serialize + Send + Sync>(
@@ -43,14 +45,18 @@ pub trait Storage: Send + Sync + Debug {
         key: &str,
         value: &T,
         ttl_seconds: i64,
-    ) -> StorageResult<()>;
+    ) -> StorageResult<()>
+    where
+        Self: Sized;
 
     /// Get an entry by key
     async fn get<T: DeserializeOwned>(
         &self,
         table: &str,
         key: &str,
-    ) -> StorageResult<Option<StorageEntry<T>>>;
+    ) -> StorageResult<Option<StorageEntry<T>>>
+    where
+        Self: Sized;
 
     /// Update an existing entry
     async fn update<T: Serialize + Send + Sync>(
@@ -58,7 +64,9 @@ pub trait Storage: Send + Sync + Debug {
         table: &str,
         key: &str,
         value: &T,
-    ) -> StorageResult<()>;
+    ) -> StorageResult<()>
+    where
+        Self: Sized;
 
     /// Update entry with optimistic locking (version check)
     async fn update_versioned<T: Serialize + Send + Sync>(
@@ -67,7 +75,9 @@ pub trait Storage: Send + Sync + Debug {
         key: &str,
         value: &T,
         expected_version: u64,
-    ) -> StorageResult<()>;
+    ) -> StorageResult<()>
+    where
+        Self: Sized;
 
     /// Delete an entry
     async fn delete(&self, table: &str, key: &str) -> StorageResult<()>;
@@ -86,7 +96,9 @@ pub trait Storage: Send + Sync + Debug {
     async fn query<T: DeserializeOwned>(
         &self,
         query: Query,
-    ) -> StorageResult<Vec<StorageEntry<T>>>;
+    ) -> StorageResult<Vec<StorageEntry<T>>>
+    where
+        Self: Sized;
 
     /// Count entries matching criteria
     async fn count(&self, query: Query) -> StorageResult<usize>;
@@ -112,7 +124,9 @@ pub trait Storage: Send + Sync + Debug {
         &self,
         table: &str,
         keys: Vec<String>,
-    ) -> StorageResult<Vec<Option<StorageEntry<T>>>>;
+    ) -> StorageResult<Vec<Option<StorageEntry<T>>>>
+    where
+        Self: Sized;
 
     /// Delete multiple entries
     async fn delete_multi(&self, table: &str, keys: Vec<String>) -> StorageResult<()>;
@@ -124,7 +138,9 @@ pub trait Storage: Send + Sync + Debug {
         key: &str,
         expected_version: u64,
         new_value: &T,
-    ) -> StorageResult<bool>;
+    ) -> StorageResult<bool>
+    where
+        Self: Sized;
 
     // Time-based operations
 
@@ -133,14 +149,18 @@ pub trait Storage: Send + Sync + Debug {
         &self,
         table: &str,
         since: DateTime<Utc>,
-    ) -> StorageResult<Vec<StorageEntry<T>>>;
+    ) -> StorageResult<Vec<StorageEntry<T>>>
+    where
+        Self: Sized;
 
     /// Get entries that expire before timestamp
     async fn get_expiring_before<T: DeserializeOwned>(
         &self,
         table: &str,
         before: DateTime<Utc>,
-    ) -> StorageResult<Vec<StorageEntry<T>>>;
+    ) -> StorageResult<Vec<StorageEntry<T>>>
+    where
+        Self: Sized;
 
     // Maintenance operations
 
@@ -217,7 +237,9 @@ pub trait RelationalStorage: Storage {
         &self,
         sql: &str,
         params: Vec<SqlParam>,
-    ) -> StorageResult<Vec<T>>;
+    ) -> StorageResult<Vec<T>>
+    where
+        Self: Sized;
 
     /// Create index
     async fn create_index(

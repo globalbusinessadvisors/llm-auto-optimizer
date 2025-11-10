@@ -56,6 +56,7 @@ chrono = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 dashmap = { workspace = true }
+rand = { workspace = true }
 num_cpus = "1.16"
 hex = "0.4"
 sha2 = { workspace = true }
@@ -72,6 +73,7 @@ prometheus-client = { workspace = true }
 
 # HTTP Server (for metrics)
 axum = { workspace = true }
+tonic = { workspace = true }
 parking_lot = "0.12"
 
 [dev-dependencies]

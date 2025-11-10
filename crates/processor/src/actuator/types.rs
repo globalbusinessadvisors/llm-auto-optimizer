@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 
-use crate::decision::{ConfigChange, Decision, SystemMetrics};
+use crate::decision::{ConfigChange, Decision};
+pub use crate::decision::SystemMetrics;
 
-use super::error::DeploymentState;
+pub use super::error::DeploymentState;
 
 /// Deployment request
 #[derive(Debug, Clone, Serialize, Deserialize)]

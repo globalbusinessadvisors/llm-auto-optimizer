@@ -378,14 +378,12 @@ impl PatternAnalyzer {
     async fn process_metric(&mut self, event: AnalyzerEvent) -> AnalyzerResult<()> {
         if let AnalyzerEvent::Metric {
             timestamp,
-            metadata,
+            labels,
             ..
         } = event
         {
-            if let Some(labels) = metadata {
-                let mut metrics = self.metrics.write().await;
-                metrics.record_request(timestamp, &labels);
-            }
+            let mut metrics = self.metrics.write().await;
+            metrics.record_request(timestamp, &labels);
         }
 
         Ok(())

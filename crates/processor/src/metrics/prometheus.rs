@@ -13,7 +13,7 @@ use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::Gauge;
 use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
 use prometheus_client::registry::Registry;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicI64, AtomicU64};
 use std::sync::Arc;
 
 /// Comprehensive metrics for the Stream Processor
@@ -32,7 +32,7 @@ pub struct ProcessorMetrics {
     pub pipeline_lag_seconds: Gauge<f64, AtomicU64>,
 
     /// Number of backpressure events (queued events)
-    pub backpressure_events: Gauge<i64, AtomicU64>,
+    pub backpressure_events: Gauge<i64, AtomicI64>,
 
     // === Window Metrics ===
     /// Total number of windows created
@@ -42,7 +42,7 @@ pub struct ProcessorMetrics {
     pub windows_triggered_total: Family<Vec<(String, String)>, Counter<u64, AtomicU64>>,
 
     /// Number of currently active windows
-    pub windows_active: Family<Vec<(String, String)>, Gauge<i64, AtomicU64>>,
+    pub windows_active: Family<Vec<(String, String)>, Gauge<i64, AtomicI64>>,
 
     /// Distribution of window sizes (number of events)
     pub window_size_events: Family<Vec<(String, String)>, Histogram>,
@@ -74,7 +74,7 @@ pub struct ProcessorMetrics {
     pub state_cache_misses_total: Family<Vec<(String, String)>, Counter<u64, AtomicU64>>,
 
     /// Current size of state in bytes
-    pub state_size_bytes: Family<Vec<(String, String)>, Gauge<i64, AtomicU64>>,
+    pub state_size_bytes: Family<Vec<(String, String)>, Gauge<i64, AtomicI64>>,
 
     /// Total number of state evictions
     pub state_evictions_total: Family<Vec<(String, String)>, Counter<u64, AtomicU64>>,
@@ -87,7 +87,7 @@ pub struct ProcessorMetrics {
     pub dedup_duplicates_found_total: Counter<u64, AtomicU64>,
 
     /// Current size of deduplication cache
-    pub dedup_cache_size: Gauge<i64, AtomicU64>,
+    pub dedup_cache_size: Gauge<i64, AtomicI64>,
 
     /// Total number of deduplication cache evictions
     pub dedup_cache_evictions_total: Counter<u64, AtomicU64>,
@@ -123,7 +123,7 @@ pub struct ProcessorMetrics {
     pub kafka_messages_produced_total: Family<Vec<(String, String)>, Counter<u64, AtomicU64>>,
 
     /// Kafka consumer lag (messages)
-    pub kafka_consumer_lag: Family<Vec<(String, String)>, Gauge<i64, AtomicU64>>,
+    pub kafka_consumer_lag: Family<Vec<(String, String)>, Gauge<i64, AtomicI64>>,
 
     /// Kafka offset commit errors
     pub kafka_offset_commit_errors_total: Family<Vec<(String, String)>, Counter<u64, AtomicU64>>,
@@ -133,7 +133,7 @@ pub struct ProcessorMetrics {
     pub pipeline_errors_total: Family<Vec<(String, String)>, Counter<u64, AtomicU64>>,
 
     /// Number of active pipeline operators
-    pub pipeline_operators_active: Gauge<i64, AtomicU64>,
+    pub pipeline_operators_active: Gauge<i64, AtomicI64>,
 
     /// Duration of operator execution in seconds
     pub operator_duration_seconds: Family<Vec<(String, String)>, Histogram>,
@@ -142,19 +142,11 @@ pub struct ProcessorMetrics {
 impl ProcessorMetrics {
     /// Create a new ProcessorMetrics instance and register all metrics
     pub fn new(registry: &mut Registry) -> Self {
-        // Create duration buckets: 1ms to 30s
-        let duration_buckets = exponential_buckets(0.001, 2.0, 16);
-
-        // Create size buckets: 1 to 10000 events
-        let size_buckets = exponential_buckets(1.0, 2.0, 14);
-
         let metrics = Self {
             // Stream Processing
             events_received_total: Counter::default(),
             events_processed_total: Family::default(),
-            event_processing_duration_seconds: Family::new_with_constructor(|| {
-                Histogram::new(duration_buckets.clone())
-            }),
+            event_processing_duration_seconds: Family::new_with_constructor(Self::duration_histogram),
             pipeline_lag_seconds: Gauge::default(),
             backpressure_events: Gauge::default(),
 
@@ -162,23 +154,17 @@ impl ProcessorMetrics {
             windows_created_total: Family::default(),
             windows_triggered_total: Family::default(),
             windows_active: Family::default(),
-            window_size_events: Family::new_with_constructor(|| {
-                Histogram::new(size_buckets.clone())
-            }),
+            window_size_events: Family::new_with_constructor(Self::size_histogram),
             late_events_total: Counter::default(),
 
             // Aggregations
             aggregations_computed_total: Family::default(),
-            aggregation_duration_seconds: Family::new_with_constructor(|| {
-                Histogram::new(duration_buckets.clone())
-            }),
+            aggregation_duration_seconds: Family::new_with_constructor(Self::duration_histogram),
             aggregation_errors_total: Family::default(),
 
             // State Backend
             state_operations_total: Family::default(),
-            state_operation_duration_seconds: Family::new_with_constructor(|| {
-                Histogram::new(duration_buckets.clone())
-            }),
+            state_operation_duration_seconds: Family::new_with_constructor(Self::duration_histogram),
             state_cache_hits_total: Family::default(),
             state_cache_misses_total: Family::default(),
             state_size_bytes: Family::default(),
@@ -210,9 +196,7 @@ impl ProcessorMetrics {
             // Pipeline
             pipeline_errors_total: Family::default(),
             pipeline_operators_active: Gauge::default(),
-            operator_duration_seconds: Family::new_with_constructor(|| {
-                Histogram::new(duration_buckets.clone())
-            }),
+            operator_duration_seconds: Family::new_with_constructor(Self::duration_histogram),
         };
 
         // Register all metrics with help text and units
@@ -616,6 +600,16 @@ impl ProcessorMetrics {
     #[inline]
     pub fn record_out_of_order_event(&self) {
         self.out_of_order_events_total.inc();
+    }
+
+    /// Helper function to create duration histograms (1ms to 30s)
+    fn duration_histogram() -> Histogram {
+        Histogram::new(exponential_buckets(0.001, 2.0, 16))
+    }
+
+    /// Helper function to create size histograms (1 to 10000 events)
+    fn size_histogram() -> Histogram {
+        Histogram::new(exponential_buckets(1.0, 2.0, 14))
     }
 }
 

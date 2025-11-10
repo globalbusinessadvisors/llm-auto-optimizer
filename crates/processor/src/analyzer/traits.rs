@@ -43,6 +43,17 @@ pub enum AnalyzerError {
     /// Timeout occurred during analysis
     #[error("Timeout: {0}")]
     Timeout(String),
+
+    /// Analyzer is not running
+    #[error("Analyzer is not running")]
+    NotRunning,
+
+    /// Invalid state transition attempted
+    #[error("Invalid state transition from {from} to {to}")]
+    InvalidStateTransition {
+        from: String,
+        to: String,
+    },
 }
 
 /// Lifecycle state of an analyzer
@@ -71,6 +82,18 @@ impl AnalyzerState {
     /// Check if the analyzer is in a terminal state
     pub fn is_terminal(&self) -> bool {
         matches!(self, AnalyzerState::Stopped | AnalyzerState::Failed)
+    }
+
+    /// Convert the state to a string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AnalyzerState::Initialized => "Initialized",
+            AnalyzerState::Starting => "Starting",
+            AnalyzerState::Running => "Running",
+            AnalyzerState::Draining => "Draining",
+            AnalyzerState::Stopped => "Stopped",
+            AnalyzerState::Failed => "Failed",
+        }
     }
 }
 

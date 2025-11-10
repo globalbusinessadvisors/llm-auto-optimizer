@@ -366,6 +366,22 @@ pub enum ActionType {
     NoAction,
 }
 
+impl ActionType {
+    /// Convert the action type to a lowercase string representation
+    pub fn to_lowercase(&self) -> String {
+        match self {
+            ActionType::ConfigChange => "configchange".to_string(),
+            ActionType::Scale => "scale".to_string(),
+            ActionType::Optimize => "optimize".to_string(),
+            ActionType::Investigate => "investigate".to_string(),
+            ActionType::Monitor => "monitor".to_string(),
+            ActionType::Alert => "alert".to_string(),
+            ActionType::Review => "review".to_string(),
+            ActionType::NoAction => "noaction".to_string(),
+        }
+    }
+}
+
 /// Risk level of an action
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

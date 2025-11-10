@@ -198,7 +198,7 @@ where
     /// Window manager
     window_manager: Arc<RwLock<WindowManager<W, Tr>>>,
     /// Watermark generator
-    watermark_generator: Arc<RwLock<WatermarkGenerator>>,
+    watermark_generator: Arc<RwLock<dyn WatermarkGenerator>>,
     /// Aggregators per key per window
     aggregators: Arc<DashMap<String, KeyState<A>>>,
     /// Result sender
@@ -341,21 +341,19 @@ where
         // Update watermark
         let watermark = {
             let mut wm_gen = self.watermark_generator.write().await;
-            wm_gen.update(event_time);
+            wm_gen.on_event(event_time.timestamp_millis(), 0);
             wm_gen.current_watermark()
         };
 
         // Check for windows ready to fire
-        if let Some(wm) = watermark {
-            let ready_windows = {
-                let mut manager = self.window_manager.write().await;
-                manager.advance_watermark(wm)?
-            };
+        let ready_windows = {
+            let mut manager = self.window_manager.write().await;
+            manager.advance_watermark(watermark.to_datetime())?
+        };
 
-            // Process ready windows
-            for window_id in ready_windows {
-                self.fire_window(&key, &window_id, wm).await?;
-            }
+        // Process ready windows
+        for window_id in ready_windows {
+            self.fire_window(&key, &window_id, watermark.to_datetime()).await?;
         }
 
         // Update latency statistics

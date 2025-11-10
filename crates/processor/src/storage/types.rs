@@ -41,6 +41,22 @@ impl StorageBackend {
     }
 }
 
+/// Entry-level metadata (separate from StorageMetadata which is backend metadata)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntryMetadata {
+    /// Entry version
+    pub version: u64,
+
+    /// Creation timestamp
+    pub created_at: DateTime<Utc>,
+
+    /// Last update timestamp
+    pub updated_at: DateTime<Utc>,
+
+    /// Optional expiration timestamp
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
 /// Storage entry with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageEntry<T> {

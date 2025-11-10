@@ -49,7 +49,7 @@ pub use config::{
     ProcessorConfig, WindowConfig, WindowType as ConfigWindowType,
     WatermarkConfig, WatermarkStrategy, StateConfig, StateBackend,
     AggregationConfig, AggregationType,
-    DeduplicationConfig, DeduplicationStrategy,
+    DeduplicationStrategy,
 };
 
 pub use normalization::{
@@ -167,7 +167,7 @@ pub use actuator::{
     // Types
     ActuatorStats, CanaryConfig, CanaryPhase, ConfigurationSnapshot,
     DeploymentMetrics, DeploymentRequest, DeploymentStatus, DeploymentStrategy,
-    HealthCheckResult, HealthStatus, RollbackReason, RollbackRequest, RollbackResult,
+    HealthCheckResult, RollbackReason, RollbackRequest, RollbackResult,
     StatisticalAnalysis, SuccessCriteria, TrafficSplitStrategy,
     // Error types
     ActuatorError, ActuatorResult, ActuatorState, DeploymentState,

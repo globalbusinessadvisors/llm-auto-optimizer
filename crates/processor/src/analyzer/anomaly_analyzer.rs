@@ -20,7 +20,7 @@ use super::traits::{
 };
 use super::types::{
     Action, ActionType, Alert, AlertStatus, AnalysisReport, AnalyzerEvent, AnalyzerStats,
-    Confidence, Evidence, EvidenceType, Impact, Insight, InsightCategory, Priority,
+    Confidence, Evidence, EvidenceType, Impact, ImpactMetric, Insight, InsightCategory, Priority,
     Recommendation, ReportSummary, RiskLevel, Severity, Threshold, ThresholdOperator,
 };
 

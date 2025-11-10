@@ -66,3 +66,7 @@ pub use manager::{ManagerState, ManagerStats, RoutingStrategy, StorageManager};
 pub use postgresql::PostgreSQLStorage;
 pub use redis::RedisStorage;
 pub use sled_backend::SledStorage;
+
+// Storage wrapper enum for dynamic dispatch
+mod wrapper;
+pub use wrapper::AnyStorage;
