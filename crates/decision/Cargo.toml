@@ -1,5 +1,5 @@
 [package]
-name = "decision"
+name = "llm-optimizer-decision"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

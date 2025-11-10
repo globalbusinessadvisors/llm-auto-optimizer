@@ -1,5 +1,5 @@
 [package]
-name = "analyzer"
+name = "llm-optimizer-analyzer"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

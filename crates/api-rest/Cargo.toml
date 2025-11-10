@@ -46,7 +46,7 @@ argon2 = "0.5"
 
 # Rate limiting
 governor.workspace = true
-tower-governor = "0.4"
+tower_governor = "0.4"
 
 # OpenAPI
 utoipa = { version = "4.2", features = ["axum_extras", "chrono", "uuid"] }

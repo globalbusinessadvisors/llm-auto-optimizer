@@ -1,5 +1,5 @@
 [package]
-name = "actuator"
+name = "llm-optimizer-actuator"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

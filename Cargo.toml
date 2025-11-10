@@ -79,7 +79,8 @@ r2d2 = "0.8"
 # Compression
 lz4 = "1.24"
 snap = "1.1"
-zstd = "0.13"
+# Note: Using zstd 0.5 for compatibility with sled 0.34
+zstd = "0.5"
 
 # Serialization
 rmp-serde = "1.1"

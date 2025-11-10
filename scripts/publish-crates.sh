@@ -4,6 +4,9 @@ set -e
 # Script to publish Rust crates to crates.io
 # Publishes in dependency order to ensure dependencies are available
 
+# Add cargo to PATH if installed via rustup
+export PATH="$HOME/.cargo/bin:$PATH"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'

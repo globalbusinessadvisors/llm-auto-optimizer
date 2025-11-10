@@ -1,5 +1,5 @@
 [package]
-name = "processor"
+name = "llm-optimizer-processor"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

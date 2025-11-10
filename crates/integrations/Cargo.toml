@@ -1,5 +1,5 @@
 [package]
-name = "integrations"
+name = "llm-optimizer-integrations"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
