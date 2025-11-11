@@ -631,7 +631,7 @@ impl Storage for PostgreSQLStorage {
     }
 
     #[instrument(skip(self))]
-    async fn get<T: DeserializeOwned>(
+    async fn get<T: DeserializeOwned + Serialize + Send + Sync>(
         &self,
         table: &str,
         key: &str,
@@ -953,7 +953,7 @@ impl Storage for PostgreSQLStorage {
     }
 
     #[instrument(skip(self, query))]
-    async fn query<T: DeserializeOwned>(&self, query: Query) -> StorageResult<Vec<StorageEntry<T>>> {
+    async fn query<T: DeserializeOwned + Send + Sync + 'static>(&self, query: Query) -> StorageResult<Vec<StorageEntry<T>>> {
         debug!("Executing query on table: {}", query.table);
 
         let start = std::time::Instant::now();
@@ -1205,7 +1205,7 @@ impl Storage for PostgreSQLStorage {
     }
 
     #[instrument(skip(self, keys))]
-    async fn get_multi<T: DeserializeOwned>(
+    async fn get_multi<T: DeserializeOwned + Serialize + Send + Sync>(
         &self,
         table: &str,
         keys: Vec<String>,
@@ -1324,7 +1324,7 @@ impl Storage for PostgreSQLStorage {
     }
 
     #[instrument(skip(self))]
-    async fn get_modified_since<T: DeserializeOwned>(
+    async fn get_modified_since<T: DeserializeOwned + Send + Sync + 'static>(
         &self,
         table: &str,
         since: DateTime<Utc>,
@@ -1367,7 +1367,7 @@ impl Storage for PostgreSQLStorage {
     }
 
     #[instrument(skip(self))]
-    async fn get_expiring_before<T: DeserializeOwned>(
+    async fn get_expiring_before<T: DeserializeOwned + Send + Sync + 'static>(
         &self,
         table: &str,
         before: DateTime<Utc>,
@@ -1545,7 +1545,7 @@ impl RelationalStorage for PostgreSQLStorage {
     }
 
     #[instrument(skip(self, params))]
-    async fn query_sql<T: DeserializeOwned>(
+    async fn query_sql<T: DeserializeOwned + Send + Sync>(
         &self,
         sql: &str,
         params: Vec<SqlParam>,
@@ -1576,14 +1576,14 @@ impl RelationalStorage for PostgreSQLStorage {
 
         let mut results = Vec::new();
         for row in rows {
-            // Attempt to deserialize the entire row as JSON
-            let json_value = serde_json::to_value(&row).map_err(|e| {
-                StorageError::SerializationError {
-                    source: Box::new(e),
+            // Extract the value column as JSON and deserialize it
+            let value_json: serde_json::Value = row.try_get("value").map_err(|e| {
+                StorageError::QueryError {
+                    message: format!("Failed to get value column: {}", e),
                 }
             })?;
 
-            let result: T = serde_json::from_value(json_value).map_err(|e| {
+            let result: T = serde_json::from_value(value_json).map_err(|e| {
                 StorageError::DeserializationError {
                     source: Box::new(e),
                 }

@@ -82,11 +82,21 @@ pub struct AggregationResult {
 }
 
 impl AggregationResult {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             counts: HashMap::new(),
             values: HashMap::new(),
         }
+    }
+
+    /// Set a count result
+    pub fn set_count(&mut self, name: impl Into<String>, count: u64) {
+        self.counts.insert(name.into(), count);
+    }
+
+    /// Set a numeric result
+    pub fn set_value(&mut self, name: impl Into<String>, value: f64) {
+        self.values.insert(name.into(), value);
     }
 
     /// Get a count result by name

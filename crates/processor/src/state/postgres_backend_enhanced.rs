@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{Executor, PgPool, Postgres, Row, Transaction};
 use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -556,7 +557,7 @@ impl ReplicaManager {
 // ============================================================================
 
 pub struct PostgresTransaction<'a> {
-    tx: Transaction<'a, Postgres>,
+    pub(crate) tx: Transaction<'a, Postgres>,
     isolation_level: IsolationLevel,
 }
 
@@ -1021,7 +1022,7 @@ impl EnhancedPostgresBackend {
             )
             .bind(key)
             .bind(value)
-            .execute(tx.as_mut())
+            .execute(&mut **tx.executor())
             .await
             .map_err(|e| StateError::StorageError {
                 backend_type: "postgres".to_string(),

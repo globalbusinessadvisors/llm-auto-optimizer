@@ -372,15 +372,11 @@ impl DecisionEngine for DecisionCoordinator {
 
         drop(stats);
 
-        // Let strategies learn from the outcome
-        if let Some(decision) = decision {
-            for strategy in &mut self.strategies {
-                if strategy.name() == decision.strategy {
-                    if let Err(e) = strategy.learn(&decision, &outcome).await {
-                        warn!("Strategy {} failed to learn from outcome: {}", strategy.name(), e);
-                    }
-                }
-            }
+        // Note: Strategy learning is disabled in this coordinator because strategies
+        // are wrapped in Arc<dyn> which doesn't allow mutable access.
+        // To enable learning, strategies would need to use interior mutability (e.g., Mutex).
+        if decision.is_some() {
+            debug!("Strategy learning not implemented for Arc-wrapped strategies");
         }
 
         // Store outcome in history

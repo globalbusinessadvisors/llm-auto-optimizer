@@ -46,15 +46,18 @@ impl ActuatorCoordinator {
             config.canary.clone(),
         )));
 
-        let rollback_engine = Arc::new(RwLock::new(RollbackEngine::new(
-            config.rollback.clone(),
-        )));
-
         let config_manager = Arc::new(RwLock::new(ConfigurationManagerImpl::new(
             config.configuration.clone(),
         )));
 
         let health_monitor = Arc::new(ProductionHealthMonitor::new());
+        let health_monitor_trait: Arc<RwLock<dyn HealthMonitor>> = Arc::new(RwLock::new(ProductionHealthMonitor::new()));
+
+        let rollback_engine = Arc::new(RwLock::new(RollbackEngine::new(
+            config.rollback.clone(),
+            config_manager.clone(),
+            health_monitor_trait,
+        )));
 
         Self {
             config,
@@ -392,19 +395,10 @@ impl Actuator for ActuatorCoordinator {
         // Get deployment status
         let status = self.get_deployment_status(&deployment_id).await?;
 
-        // Determine rollback mode
-        let mode = if request.reason == super::types::RollbackReason::HealthCheckFailed
-            || request.reason == super::types::RollbackReason::HighErrorRate
-        {
-            super::rollback::RollbackMode::Fast
-        } else {
-            super::rollback::RollbackMode::Gradual
-        };
-
         // Execute rollback
         let mut rollback_engine = self.rollback_engine.write().await;
         let result = rollback_engine
-            .execute_rollback(&deployment_id, mode, Some(request.reason.clone()))
+            .execute_rollback(request.clone(), &status, Vec::new())
             .await;
         drop(rollback_engine);
 

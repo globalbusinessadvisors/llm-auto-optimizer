@@ -424,7 +424,7 @@ impl Storage for StorageManager {
     }
 
     #[instrument(skip(self, value))]
-    async fn insert<T: Serialize + Send + Sync>(
+    async fn insert<T: Serialize + DeserializeOwned + Send + Sync>(
         &self,
         table: &str,
         key: &str,
@@ -503,7 +503,7 @@ impl Storage for StorageManager {
     }
 
     #[instrument(skip(self))]
-    async fn get<T: DeserializeOwned>(
+    async fn get<T: DeserializeOwned + Serialize + Send + Sync>(
         &self,
         table: &str,
         key: &str,
@@ -632,7 +632,7 @@ impl Storage for StorageManager {
     }
 
     #[instrument(skip(self))]
-    async fn query<T: DeserializeOwned>(
+    async fn query<T: DeserializeOwned + Serialize + Send + Sync + 'static>(
         &self,
         query: Query,
     ) -> StorageResult<Vec<StorageEntry<T>>> {
@@ -701,7 +701,7 @@ impl Storage for StorageManager {
     }
 
     #[instrument(skip(self))]
-    async fn get_multi<T: DeserializeOwned>(
+    async fn get_multi<T: DeserializeOwned + Serialize + Send + Sync>(
         &self,
         table: &str,
         keys: Vec<String>,
@@ -746,7 +746,7 @@ impl Storage for StorageManager {
     }
 
     #[instrument(skip(self))]
-    async fn get_modified_since<T: DeserializeOwned>(
+    async fn get_modified_since<T: DeserializeOwned + Serialize + Send + Sync + 'static>(
         &self,
         table: &str,
         since: DateTime<Utc>,
@@ -761,7 +761,7 @@ impl Storage for StorageManager {
     }
 
     #[instrument(skip(self))]
-    async fn get_expiring_before<T: DeserializeOwned>(
+    async fn get_expiring_before<T: DeserializeOwned + Serialize + Send + Sync + 'static>(
         &self,
         table: &str,
         before: DateTime<Utc>,

@@ -143,7 +143,7 @@ impl WindowMetadata {
             event_time: self.stats.max_event_time,
             processing_time: Utc::now(),
             watermark,
-            element_count: self.stats.event_count,
+            element_count: self.stats.event_count as usize,
         };
 
         let result = if let Some(wm) = watermark {

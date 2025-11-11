@@ -254,6 +254,7 @@ pub enum SortDirection {
 
 /// Transaction context
 #[derive(Debug)]
+#[derive(Clone)]
 pub struct Transaction {
     /// Transaction ID
     pub id: String,

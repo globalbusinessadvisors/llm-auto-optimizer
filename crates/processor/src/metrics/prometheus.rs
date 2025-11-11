@@ -428,7 +428,8 @@ impl ProcessorMetrics {
     /// Create a new instance registered with the global registry
     pub fn global() -> Arc<Self> {
         let registry = MetricsRegistry::global();
-        let mut reg = registry.registry().write();
+        let binding = registry.registry();
+        let mut reg = binding.write();
         Arc::new(Self::new(&mut reg))
     }
 

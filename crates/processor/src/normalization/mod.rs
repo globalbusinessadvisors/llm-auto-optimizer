@@ -127,7 +127,7 @@ impl FillStrategy {
                     }
                     (Some(v), None, _, _) => Ok(Some(v)),    // Fall back to forward fill
                     (None, Some(v), _, _) => Ok(Some(v)),    // Fall back to backward fill
-                    (Some(v1), Some(v2), None, _) => Ok(Some((v1 + v2) / 2.0)), // No timestamps, average values
+                    (Some(v1), Some(v2), None, _) | (Some(v1), Some(v2), _, None) => Ok(Some((v1 + v2) / 2.0)), // No timestamps, average values
                     (None, None, _, _) => Ok(None),          // No data available
                 }
             }

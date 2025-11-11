@@ -4,6 +4,7 @@
 //! boundaries using W3C Trace Context and Baggage standards.
 
 use opentelemetry::{
+    baggage::BaggageExt,
     global,
     propagation::{Extractor, Injector, TextMapPropagator},
     trace::{TraceContextExt, TraceError},
@@ -75,8 +76,9 @@ impl Extractor for HeaderCarrier {
 /// // carrier now contains traceparent and tracestate headers
 /// ```
 pub fn inject_context(context: &Context, carrier: &mut dyn Injector) {
-    let propagator = global::get_text_map_propagator(|propagator| propagator.clone());
-    propagator.inject_context(context, carrier);
+    global::get_text_map_propagator(|propagator| {
+        propagator.inject_context(context, carrier);
+    });
 }
 
 /// Extracts trace context from a carrier.
@@ -89,8 +91,7 @@ pub fn inject_context(context: &Context, carrier: &mut dyn Injector) {
 /// // context now contains the extracted trace context
 /// ```
 pub fn extract_context(carrier: &dyn Extractor) -> Context {
-    let propagator = global::get_text_map_propagator(|propagator| propagator.clone());
-    propagator.extract(carrier)
+    global::get_text_map_propagator(|propagator| propagator.extract(carrier))
 }
 
 /// Injects trace context into HTTP headers.
@@ -138,11 +139,11 @@ pub fn with_baggage(context: &Context, items: Vec<BaggageItem>) -> Context {
 
 /// Gets baggage value from context.
 pub fn get_baggage(context: &Context, key: &str) -> Option<String> {
-    context.get::<String>(key.into()).map(|v| v.to_string())
+    context.baggage().get(key).map(|v| v.to_string())
 }
 
 /// Creates a new context with the current span.
-pub fn context_with_span(span: impl opentelemetry::trace::Span) -> Context {
+pub fn context_with_span(span: impl opentelemetry::trace::Span + Send + Sync + 'static) -> Context {
     Context::current_with_span(span)
 }
 

@@ -66,7 +66,7 @@ struct CanaryDeploymentState {
 }
 
 /// Canary deployment engine
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CanaryDeploymentEngine {
     /// Active deployments
     deployments: Arc<RwLock<HashMap<String, CanaryDeploymentState>>>,
@@ -79,6 +79,17 @@ pub struct CanaryDeploymentEngine {
 
     /// Metrics buffer for statistical analysis
     metrics_buffer: Arc<RwLock<HashMap<String, MetricsBuffer>>>,
+}
+
+impl std::fmt::Debug for CanaryDeploymentEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CanaryDeploymentEngine")
+            .field("deployments", &self.deployments)
+            .field("health_monitor", &self.health_monitor.as_ref().map(|_| "Arc<dyn HealthMonitor>"))
+            .field("default_config", &self.default_config)
+            .field("metrics_buffer", &self.metrics_buffer)
+            .finish()
+    }
 }
 
 /// Buffer for storing metrics samples

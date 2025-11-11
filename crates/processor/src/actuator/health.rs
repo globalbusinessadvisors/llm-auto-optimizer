@@ -531,7 +531,7 @@ impl HealthMonitorTrait for ProductionHealthMonitor {
             ActuatorError::Internal(format!("Failed to acquire read lock: {}", e))
         })?;
 
-        let criteria = &state.config.success_criteria;
+        let criteria = state.config.success_criteria.clone();
 
         // Convert SystemMetrics to DeploymentMetrics for this check
         // In a real system, we'd track separate canary/control metrics
@@ -560,48 +560,48 @@ impl HealthMonitorTrait for ProductionHealthMonitor {
         results.push(self.perform_health_check(
             HealthCheckType::SuccessRate,
             &deployment_metrics,
-            criteria,
+            &criteria,
         ));
 
         results.push(self.perform_health_check(
             HealthCheckType::ErrorRate,
             &deployment_metrics,
-            criteria,
+            &criteria,
         ));
 
         results.push(self.perform_health_check(
             HealthCheckType::P95Latency,
             &deployment_metrics,
-            criteria,
+            &criteria,
         ));
 
         results.push(self.perform_health_check(
             HealthCheckType::P99Latency,
             &deployment_metrics,
-            criteria,
+            &criteria,
         ));
 
         results.push(self.perform_health_check(
             HealthCheckType::QualityScore,
             &deployment_metrics,
-            criteria,
+            &criteria,
         ));
 
         results.push(self.perform_health_check(
             HealthCheckType::CostIncrease,
             &deployment_metrics,
-            criteria,
+            &criteria,
         ));
 
         results.push(self.perform_health_check(
             HealthCheckType::SampleSize,
             &deployment_metrics,
-            criteria,
+            &criteria,
         ));
 
         // Perform statistical analysis if enabled
         if self.state.read().unwrap().config.enable_statistical_testing {
-            if let Some(analysis) = self.perform_statistical_analysis(&deployment_metrics, criteria)
+            if let Some(analysis) = self.perform_statistical_analysis(&deployment_metrics, &criteria)
             {
                 let mut metrics_with_analysis = deployment_metrics;
                 metrics_with_analysis.statistical_analysis = Some(analysis);
@@ -609,7 +609,7 @@ impl HealthMonitorTrait for ProductionHealthMonitor {
                 results.push(self.perform_health_check(
                     HealthCheckType::Statistical,
                     &metrics_with_analysis,
-                    criteria,
+                    &criteria,
                 ));
             }
         }

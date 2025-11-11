@@ -29,7 +29,7 @@ pub trait Storage: Send + Sync + Debug {
     // Basic CRUD operations
 
     /// Insert a new entry
-    async fn insert<T: Serialize + Send + Sync>(
+    async fn insert<T: Serialize + DeserializeOwned + Send + Sync>(
         &self,
         table: &str,
         key: &str,
@@ -50,7 +50,7 @@ pub trait Storage: Send + Sync + Debug {
         Self: Sized;
 
     /// Get an entry by key
-    async fn get<T: DeserializeOwned>(
+    async fn get<T: DeserializeOwned + Serialize + Send + Sync>(
         &self,
         table: &str,
         key: &str,
@@ -93,7 +93,7 @@ pub trait Storage: Send + Sync + Debug {
     // Query operations
 
     /// Query entries matching criteria
-    async fn query<T: DeserializeOwned>(
+    async fn query<T: DeserializeOwned + Serialize + Send + Sync + 'static>(
         &self,
         query: Query,
     ) -> StorageResult<Vec<StorageEntry<T>>>
@@ -120,7 +120,7 @@ pub trait Storage: Send + Sync + Debug {
     async fn scan_prefix(&self, table: &str, prefix: &str) -> StorageResult<Vec<String>>;
 
     /// Get multiple entries by keys
-    async fn get_multi<T: DeserializeOwned>(
+    async fn get_multi<T: DeserializeOwned + Serialize + Send + Sync>(
         &self,
         table: &str,
         keys: Vec<String>,
@@ -145,7 +145,7 @@ pub trait Storage: Send + Sync + Debug {
     // Time-based operations
 
     /// Get entries modified after timestamp
-    async fn get_modified_since<T: DeserializeOwned>(
+    async fn get_modified_since<T: DeserializeOwned + Serialize + Send + Sync + 'static>(
         &self,
         table: &str,
         since: DateTime<Utc>,
@@ -154,7 +154,7 @@ pub trait Storage: Send + Sync + Debug {
         Self: Sized;
 
     /// Get entries that expire before timestamp
-    async fn get_expiring_before<T: DeserializeOwned>(
+    async fn get_expiring_before<T: DeserializeOwned + Serialize + Send + Sync + 'static>(
         &self,
         table: &str,
         before: DateTime<Utc>,
@@ -233,7 +233,7 @@ pub trait RelationalStorage: Storage {
     async fn execute_sql(&self, sql: &str, params: Vec<SqlParam>) -> StorageResult<SqlResult>;
 
     /// Execute SQL query and return results
-    async fn query_sql<T: DeserializeOwned>(
+    async fn query_sql<T: DeserializeOwned + Send + Sync>(
         &self,
         sql: &str,
         params: Vec<SqlParam>,

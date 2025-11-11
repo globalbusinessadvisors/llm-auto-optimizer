@@ -71,7 +71,7 @@ use super::stats::{
 use super::traits::{Analyzer, AnalyzerConfig, AnalyzerError, AnalyzerResult, AnalyzerState};
 use super::types::{
     Action, ActionType, Alert, AlertStatus, AnalysisReport, AnalyzerEvent, AnalyzerStats,
-    Confidence, Evidence, EvidenceType, Impact, ImpactMetric, Insight, InsightCategory, Priority,
+    Confidence, Evidence, EvidenceType, FeedbackType, Impact, ImpactMetric, Insight, InsightCategory, Priority,
     Recommendation, ReportSummary, RiskLevel, Severity,
 };
 
@@ -997,11 +997,17 @@ impl Analyzer for QualityAnalyzer {
                 // Extract model from metadata or use request_id as fallback
                 let model = metadata
                     .get("model")
-                    .and_then(|v| v.as_str())
                     .unwrap_or(&request_id)
                     .to_string();
 
-                self.process_feedback_event(timestamp, model, rating, feedback_type)
+                let feedback_str = match feedback_type {
+                    FeedbackType::Positive => "positive",
+                    FeedbackType::Negative => "negative",
+                    FeedbackType::Rating => "rating",
+                    FeedbackType::Quality => "quality",
+                    FeedbackType::Custom => "custom",
+                };
+                self.process_feedback_event(timestamp, model, Some(rating), Some(feedback_str.to_string()))
                     .await?;
             }
             _ => {

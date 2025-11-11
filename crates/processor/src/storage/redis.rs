@@ -48,8 +48,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use deadpool_redis::{Config as PoolConfig, Connection, Pool, Runtime};
+use futures::StreamExt;
 use redis::{AsyncCommands, RedisError, Script};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -93,7 +94,7 @@ pub struct RedisStorage {
 }
 
 /// Internal cache statistics tracking
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct InternalCacheStats {
     hits: u64,
     misses: u64,
@@ -202,7 +203,6 @@ impl LuaScripts {
 }
 
 /// Redis pub/sub subscriber implementation
-#[derive(Debug)]
 struct RedisSubscriber {
     /// Channel name
     channel: String,
@@ -214,10 +214,48 @@ struct RedisSubscriber {
     buffer: Vec<Vec<u8>>,
 }
 
+impl std::fmt::Debug for RedisSubscriber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedisSubscriber")
+            .field("channel", &self.channel)
+            .field("buffer_len", &self.buffer.len())
+            .finish()
+    }
+}
+
 impl RedisSubscriber {
-    async fn new(conn: Connection, channel: String) -> StorageResult<Self> {
-        let pubsub = Connection::take(conn)
-            .into_pubsub();
+    async fn new(redis_url: String, channel: String) -> StorageResult<Self> {
+        // Create dedicated client for pub/sub
+        let client = redis::Client::open(redis_url.clone())
+            .map_err(|e| StorageError::ConnectionError {
+                source: Box::new(e),
+            })?;
+
+        // Get connection info and create TCP connection for PubSub
+        let connection_info = client.get_connection_info();
+
+        // Connect to Redis server
+        let addr = match &connection_info.addr {
+            redis::ConnectionAddr::Tcp(host, port) => format!("{}:{}", host, port),
+            redis::ConnectionAddr::TcpTls { host, port, .. } => format!("{}:{}", host, port),
+            redis::ConnectionAddr::Unix(_) => {
+                return Err(StorageError::UnsupportedOperation {
+                    operation: "PubSub over Unix sockets".to_string(),
+                    backend: "Redis".to_string(),
+                });
+            }
+        };
+
+        let stream = tokio::net::TcpStream::connect(&addr).await
+            .map_err(|e| StorageError::ConnectionError {
+                source: Box::new(e),
+            })?;
+
+        // Create PubSub from stream
+        let pubsub = redis::aio::PubSub::new(&connection_info.redis, stream).await
+            .map_err(|e| StorageError::ConnectionError {
+                source: Box::new(e),
+            })?;
 
         Ok(Self {
             channel,
@@ -236,17 +274,15 @@ impl Subscriber for RedisSubscriber {
         }
 
         // Wait for next message
-        match self.pubsub.get_message().await {
-            Ok(msg) => {
+        match self.pubsub.on_message().next().await {
+            Some(msg) => {
                 let payload = msg.get_payload_bytes().to_vec();
                 trace!("Received pub/sub message on channel {}: {} bytes", self.channel, payload.len());
                 Ok(Some(payload))
             }
-            Err(e) => {
-                error!("Error receiving pub/sub message: {}", e);
-                Err(StorageError::ConnectionError {
-                    source: Box::new(e),
-                })
+            None => {
+                debug!("Pub/sub stream ended");
+                Ok(None)
             }
         }
     }
@@ -495,7 +531,7 @@ impl RedisStorage {
     }
 
     /// Build storage entry from Redis data
-    async fn build_entry<T: DeserializeOwned>(
+    async fn build_entry<T: DeserializeOwned + Send + Sync>(
         &self,
         conn: &mut Connection,
         table: &str,
@@ -772,7 +808,7 @@ impl Storage for RedisStorage {
         Ok(())
     }
 
-    async fn get<T: DeserializeOwned>(
+    async fn get<T: DeserializeOwned + Serialize + Send + Sync>(
         &self,
         table: &str,
         key: &str,
@@ -979,7 +1015,7 @@ impl Storage for RedisStorage {
         Ok(())
     }
 
-    async fn query<T: DeserializeOwned>(&self, query: Query) -> StorageResult<Vec<StorageEntry<T>>> {
+    async fn query<T: DeserializeOwned + Serialize + Send + Sync + 'static>(&self, query: Query) -> StorageResult<Vec<StorageEntry<T>>> {
         let start = Instant::now();
 
         // For Redis, we scan keys and filter in memory
@@ -1118,7 +1154,7 @@ impl Storage for RedisStorage {
         Ok(extracted_keys)
     }
 
-    async fn get_multi<T: DeserializeOwned>(
+    async fn get_multi<T: DeserializeOwned + Serialize + Send + Sync>(
         &self,
         table: &str,
         keys: Vec<String>,
@@ -1206,7 +1242,7 @@ impl Storage for RedisStorage {
         Ok(success)
     }
 
-    async fn get_modified_since<T: DeserializeOwned>(
+    async fn get_modified_since<T: DeserializeOwned + Serialize + Send + Sync + 'static>(
         &self,
         table: &str,
         since: DateTime<Utc>,
@@ -1220,7 +1256,7 @@ impl Storage for RedisStorage {
         self.query(query).await
     }
 
-    async fn get_expiring_before<T: DeserializeOwned>(
+    async fn get_expiring_before<T: DeserializeOwned + Serialize + Send + Sync + 'static>(
         &self,
         table: &str,
         before: DateTime<Utc>,
@@ -1510,10 +1546,10 @@ impl PubSubStorage for RedisStorage {
     }
 
     async fn subscribe(&self, channel: &str) -> StorageResult<Box<dyn Subscriber>> {
-        let conn = self.get_connection().await?;
+        let redis_url = self.config.connection_url();
         let full_channel = format!("{}:pubsub:{}", self.config.key_prefix, channel);
 
-        let mut subscriber = RedisSubscriber::new(conn, full_channel.clone()).await?;
+        let mut subscriber = RedisSubscriber::new(redis_url, full_channel.clone()).await?;
 
         // Subscribe to channel
         subscriber.pubsub

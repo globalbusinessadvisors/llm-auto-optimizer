@@ -616,12 +616,14 @@ impl Analyzer for PerformanceAnalyzer {
         let recommendations = self.generate_recommendations(&insights);
         let alerts = Vec::new(); // Alerts would be generated based on thresholds
 
-        let percentiles = metrics.calculate_percentiles();
+        let mut percentiles = metrics.calculate_percentiles();
         let throughput = metrics.calculate_throughput();
         let success_rate = metrics.get_success_rate();
 
+        let p95_latency = percentiles.get("p95.0").copied().unwrap_or(0.0);
+
         let mut report_metrics = HashMap::new();
-        for (k, v) in percentiles {
+        for (k, v) in percentiles.drain() {
             report_metrics.insert(k, v);
         }
         report_metrics.insert("throughput_rps".to_string(), throughput);
@@ -641,7 +643,7 @@ impl Analyzer for PerformanceAnalyzer {
                 alerts_count: alerts.len() as u64,
                 analysis_duration_ms: stats.analysis_time_ms,
                 highlights: vec![
-                    format!("P95 latency: {:.2}ms", percentiles.get("p95.0").unwrap_or(&0.0)),
+                    format!("P95 latency: {:.2}ms", p95_latency),
                     format!("Throughput: {:.2} req/s", throughput),
                     format!("Success rate: {:.1}%", success_rate * 100.0),
                 ],
